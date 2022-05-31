@@ -2,4 +2,11 @@ Thumbs.db
 *.log
 *.bak
 .DS_Store
-
+*.o
+Image
+System.map
+*.a
+bootsect
+setup
+keyboard.s
+system
