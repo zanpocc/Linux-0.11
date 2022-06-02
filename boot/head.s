@@ -16,14 +16,20 @@
 pg_dir:
 .globl startup_32
 startup_32:
+	# 0x10表示全局描述符表中的第二个描述符，数据段描述符
 	movl $0x10,%eax
 	mov %ax,%ds
 	mov %ax,%es
 	mov %ax,%fs
 	mov %ax,%gs
-	lss stack_start,%esp
+	# 栈顶指针指向标记stack_start，高位8字节（0x10）赋值给ss寄存器，低位16字节赋值给esp
+	lss stack_start,%esp # stack_start定义在sched.c中
+
+	# 重新设置
 	call setup_idt
 	call setup_gdt
+
+
 	movl $0x10,%eax		# reload all the segment registers
 	mov %ax,%ds		# after changing gdt. CS was already
 	mov %ax,%es		# reloaded in 'setup_gdt'
@@ -78,13 +84,13 @@ check_x87:
  *  written by the page tables.
  */
 setup_idt:
-	lea ignore_int,%edx
+	lea ignore_int,%edx # 默认的中断处理程序
 	movl $0x00080000,%eax
 	movw %dx,%ax		/* selector = 0x0008 = cs */
 	movw $0x8E00,%dx	/* interrupt gate - dpl=0, present */
 
 	lea idt,%edi
-	mov $256,%ecx
+	mov $256,%ecx # 中断描述符表256项
 rp_sidt:
 	movl %eax,(%edi)
 	movl %edx,4(%edi)
@@ -216,7 +222,9 @@ setup_paging:
 	xorl %eax,%eax		/* pg_dir is at 0x0000 */
 	movl %eax,%cr3		/* cr3 - page directory start */
 	movl %cr0,%eax
-	orl $0x80000000,%eax
+	
+	# 开启分页机制
+	orl $0x80000000,%eax 
 	movl %eax,%cr0		/* set paging (PG) bit */
 	ret			/* this also flushes prefetch-queue */
 
@@ -234,8 +242,10 @@ gdt_descr:
 	.align 8
 idt:	.fill 256,8,0		# idt is uninitialized
 
-gdt:	.quad 0x0000000000000000	/* NULL descriptor */
-	.quad 0x00c09a0000000fff	/* 16Mb */
+gdt:	
+	.quad 0x0000000000000000	/* NULL descriptor */
+	.quad 0x00c09a0000000fff	/* 16Mb */ 
 	.quad 0x00c0920000000fff	/* 16Mb */
 	.quad 0x0000000000000000	/* TEMPORARY - don't use */
+	# 252项预留给ldt和tss
 	.fill 252,8,0			/* space for LDT's and TSS's etc */

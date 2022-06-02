@@ -16,6 +16,23 @@
 
 # NOTE! These had better be the same as in bootsect.s!
 
+# setup主要获取一些硬件信息，放入内存指定位置中
+# 内存地址	长度(字节)	名称
+# 0x90000	2	光标位置
+# 0x90002	2   扩展内存数
+# 0x90004	2	显示页面
+# 0x90006	1   显示模式
+# 0x90007	1	字符列数
+# 0x90008	2	未知
+# 0x9000A	1   显示内存
+# 0x9000B	1   显示状态
+# 0x9000C	2	显卡特性参数
+# 0x9000E	1   屏幕行数
+# 0x9000F	1	屏幕列数
+# 0x90080	16  硬盘1参数表
+# 0x90090	16	硬盘2参数表
+# 0x901FC	2   根设备号
+
 	.equ INITSEG, 0x9000	# we move boot here - out of the way
 	.equ SYSSEG, 0x1000	# system loaded at 0x10000 (65536).
 	.equ SETUPSEG, 0x9020	# this is the current segment
@@ -181,7 +198,7 @@ _start:
 	mov %ds:0x8e, %ax
 	call print_hex
 	call print_nl
-#l:
+# l:
 #	jmp l
 # Check that there IS a hd1 :-)
 
@@ -201,11 +218,13 @@ no_disk1:
 	stosb
 is_disk1:
 
+# 准备进入保护模式
 # now we want to move to protected mode ...
 
 	cli			# no interrupts allowed ! 
 
 # first we move the system to it's rightful place
+# 现在移动系统到正确的位置，即将system移动到内存地址0处，大小0x80000 即512kb
 
 	mov	$0x0000, %ax
 	cld			# 'direction'=0, movs moves forward
@@ -223,21 +242,28 @@ do_move:
 	jmp	do_move
 
 # then we load the segment descriptors
+# 然后我们加载段描述符
 
 end_move:
 	mov	$SETUPSEG, %ax	# right, forgot this at first. didn't work :-)
 	mov	%ax, %ds
-	lidt	idt_48		# load idt with 0,0
-	lgdt	gdt_48		# load gdt with whatever appropriate
+	lidt	idt_48		# load idt with 0,0 中断描述符表
+	lgdt	gdt_48		# load gdt with whatever appropriate 全局描述符表
 
 # that was painless, now we enable A20
 
 	#call	empty_8042	# 8042 is the keyboard controller
+
+	# 打开A20地址线，突破内存地址只能访问20位的限制
 	#mov	$0xD1, %al	# command write
 	#out	%al, $0x64
+
 	#call	empty_8042
+
+	# 打开A20地址线，突破内存地址只能访问20位的限制
 	#mov	$0xDF, %al	# A20 on
 	#out	%al, $0x60
+
 	#call	empty_8042
 	inb     $0x92, %al	# open A20 line(Fast Gate A20).
 	orb     $0b00000010, %al
@@ -250,6 +276,8 @@ end_move:
 # rectify it afterwards. Thus the bios puts interrupts at 0x08-0x0f,
 # which is used for the internal hardware interrupts as well. We just
 # have to reprogram the 8259's, and it isn't fun.
+
+# 对可编程中断控制器 8259 芯片进行的编程
 
 	mov	$0x11, %al		# initialization sequence(ICW1)
 					# ICW4 needed(1),CASCADE mode,Level-triggered
@@ -288,14 +316,19 @@ end_move:
 # things as simple as possible, we do no register set-up or anything,
 # we let the gnu-compiled 32-bit programs do that. We just jump to
 # absolute address 0x00000, in 32-bit protected mode.
-	#mov	$0x0001, %ax	# protected mode (PE) bit
-	#lmsw	%ax		# This is it!
+	# mov	$0x0001, %ax	# protected mode (PE) bit
+	# lmsw	%ax		# This is it!
+
+	# 设置cr0寄存器的第0位为1，开启保护模式
 	mov	%cr0, %eax	# get machine status(cr0|MSW)	
 	bts	$0, %eax	# turn on the PE-bit 
 	mov	%eax, %cr0	# protection enabled
 				
 				# segment-descriptor        (INDEX:TI:RPL)
+	# 8是段选择子，二进制的3-15位表示1，即gdt中的第一项，即代码段
 	.equ	sel_cs0, 0x0008 # select for code segment 0 (  001:0 :00) 
+	
+	# 跳转到地址0处，即system开始地址
 	ljmp	$sel_cs0, $0	# jmp offset 0 of code segment 0 in gdt
 
 # This routine checks that the keyboard command queue is empty
@@ -308,19 +341,24 @@ empty_8042:
 	jnz	empty_8042	# yes - loop
 	ret
 
+# 全局描述符表数据
 gdt:
+	# 第0项为空
 	.word	0,0,0,0		# dummy
 
+	# 第1项，代码段描述符
 	.word	0x07FF		# 8Mb - limit=2047 (2048*4096=8Mb)
 	.word	0x0000		# base address=0
 	.word	0x9A00		# code read/exec
 	.word	0x00C0		# granularity=4096, 386
 
+	# 第2项，数据段描述符
 	.word	0x07FF		# 8Mb - limit=2047 (2048*4096=8Mb)
 	.word	0x0000		# base address=0
 	.word	0x9200		# data read/write
 	.word	0x00C0		# granularity=4096, 386
 
+# 中断描述符表为空
 idt_48:
 	.word	0			# idt limit=0
 	.word	0,0			# idt base=0L
