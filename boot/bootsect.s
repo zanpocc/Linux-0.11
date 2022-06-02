@@ -1,10 +1,5 @@
 	.code16
-# rewrite with AT&T syntax by falcon <wuzhangjin@gmail.com> at 081012
-#
-# SYS_SIZE is the number of clicks (16 bytes) to be loaded.
-# 0x3000 is 0x30000 bytes = 196kB, more than enough for current
-# versions of linux
-#
+
 	.equ SYSSIZE, 0x3000
 #
 #	bootsect.s		(C) 1991 Linus Torvalds
@@ -24,6 +19,11 @@
 # read errors will result in a unbreakable loop. Reboot by hand. It
 # loads pretty fast by getting whole sectors at a time whenever possible.
 
+
+# 当你按下开机键的那一刻，在主板上提前写死的固件程序 BIOS 会将硬盘中启动区(第一个扇区)的 512 字节的数据，
+# 原封不动复制到内存中的 0x7c00 这个位置，并跳转到那个位置进行执行。
+
+	# 导出函数
 	.global _start, begtext, begdata, begbss, endtext, enddata, endbss
 	.text
 	begtext:
@@ -43,37 +43,33 @@
 # ROOT_DEV:	0x000 - same type of floppy as boot.
 #		0x301 - first partition on first drive etc
 #
-##和源码不同，源码中是0x306 第2块硬盘的第一个分区
-#
 	.equ ROOT_DEV, 0x301
+
+	# 貌似这条也没什么用，已经被BIOS移动到了7c00处了
 	ljmp    $BOOTSEG, $_start
 _start:
-	mov	$BOOTSEG, %ax	#将ds段寄存器设置为0x7C0
+# 拷贝256个字节从0x07c00到0x90000
+	mov	$BOOTSEG, %ax	
 	mov	%ax, %ds
-	mov	$INITSEG, %ax	#将es段寄存器设置为0x900
+	mov	$INITSEG, %ax	
 	mov	%ax, %es
-	mov	$256, %cx		#设置移动计数值256字
-	sub	%si, %si		#源地址	ds:si = 0x07C0:0x0000
-	sub	%di, %di		#目标地址 es:si = 0x9000:0x0000
-	rep					#重复执行并递减cx的值
-	movsw				#从内存[si]处移动cx个字到[di]处
-	ljmp	$INITSEG, $go	#段间跳转，这里INITSEG指出跳转到的段地址，解释了cs的值为0x9000
-go:	mov	%cs, %ax		#将ds，es，ss都设置成移动后代码所在的段处(0x9000)
+	mov	$256, %cx		
+	sub	%si, %si		
+	sub	%di, %di		
+	rep					
+	movsw				
+	ljmp	$INITSEG, $go  # 跳到0x90000处的下一段代码继续执行
+
+go:	mov	%cs, %ax # cs是代码段寄存器，当前代码段为0x90000
 	mov	%ax, %ds
 	mov	%ax, %es
-# put stack at 0x9ff00.
 	mov	%ax, %ss
-	mov	$0xFF00, %sp		# arbitrary value >>512
+	mov	$0xFF00, %sp		# 设置堆栈寄存器地址为0x9ff00
 
 # load the setup-sectors directly after the bootblock.
 # Note that 'es' is already set up.
 
-#
-##ah=0x02 读磁盘扇区到内存	al＝需要独出的扇区数量
-##ch=磁道(柱面)号的低八位   cl＝开始扇区(位0-5),磁道号高2位(位6－7)
-##dh=磁头号					dl=驱动器号(硬盘则7要置位)
-##es:bx ->指向数据缓冲区；如果出错则CF标志置位,ah中是出错码
-#
+# 将硬盘的第2个扇区开始，把数据加载到内存 0x90200 处，共加载4个扇区(setup)
 load_setup:
 	mov	$0x0000, %dx		# drive 0, head 0
 	mov	$0x0002, %cx		# sector 2, track 0
@@ -90,17 +86,19 @@ load_setup:
 ok_load_setup:
 
 # Get disk drive parameters, specifically nr of sectors/track
+# 获取磁盘驱动参数
 
 	mov	$0x00, %dl
 	mov	$0x0800, %ax		# AH=8 is get drive parameters
 	int	$0x13
 	mov	$0x00, %ch
-	#seg cs
+	# seg cs
 	mov	%cx, %cs:sectors+0	# %cs means sectors is in %cs
 	mov	$INITSEG, %ax
 	mov	%ax, %es
 
 # Print some inane message
+# 打印消息
 
 	mov	$0x03, %ah		# read cursor pos
 	xor	%bh, %bh
@@ -108,17 +106,17 @@ ok_load_setup:
 	
 	mov	$30, %cx
 	mov	$0x0007, %bx		# page 0, attribute 7 (normal)
-	#lea	msg1, %bp
+	# lea	msg1, %bp
 	mov     $msg1, %bp
 	mov	$0x1301, %ax		# write string, move cursor
 	int	$0x10
 
 # ok, we've written the message, now
 # we want to load the system (at 0x10000)
-
+# 把系统加载到0x10000(第六个扇区往后240个扇区)
 	mov	$SYSSEG, %ax
 	mov	%ax, %es		# segment of 0x010000
-	call	read_it
+	call	read_it     # 加载system
 	call	kill_motor
 
 # After that we check which root-device to use. If the device is
@@ -126,11 +124,16 @@ ok_load_setup:
 # Otherwise, either /dev/PS0 (2,28) or /dev/at0 (2,8), depending
 # on the number of sectors that the BIOS reports currently.
 
-	#seg cs
+# 之后我们检查要使用的根设备。 如果设备是
+# defined (#= 0)，什么都不做，使用给定的设备。
+# 否则，/dev/PS0 (2,28) 或 /dev/at0 (2,8)，取决于
+# 关于 BIOS 当前报告的扇区数。
+
+	# seg cs
 	mov	%cs:root_dev+0, %ax
 	cmp	$0, %ax
 	jne	root_defined
-	#seg cs
+	# seg cs
 	mov	%cs:sectors+0, %bx
 	mov	$0x0208, %ax		# /dev/ps0 - 1.2Mb
 	cmp	$15, %bx
@@ -141,14 +144,14 @@ ok_load_setup:
 undef_root:
 	jmp undef_root
 root_defined:
-	#seg cs
+	# seg cs
 	mov	%ax, %cs:root_dev+0
 
 # after that (everyting loaded), we jump to
 # the setup-routine loaded directly after
 # the bootblock:
 
-	ljmp	$SETUPSEG, $0
+	ljmp	$SETUPSEG, $0 # 跳到内存中的setup起始处去执行
 
 # This routine loads the system at address 0x10000, making sure
 # no 64kB boundaries are crossed. We try to load it as fast as
@@ -171,7 +174,7 @@ rp_read:
 	jb	ok1_read
 	ret
 ok1_read:
-	#seg cs
+	# seg cs
 	mov	%cs:sectors+0, %ax
 	sub	sread, %ax
 	mov	%ax, %cx
@@ -186,7 +189,7 @@ ok2_read:
 	call 	read_track
 	mov 	%ax, %cx
 	add 	sread, %ax
-	#seg cs
+	# seg cs
 	cmp 	%cs:sectors+0, %ax
 	jne 	ok3_read
 	mov 	$1, %ax
@@ -255,12 +258,14 @@ sectors:
 
 msg1:
 	.byte 13,10
-	.ascii "IceCityOS is booting ..."
+	.ascii "System is loading ..."
 	.byte 13,10,13,10
 
 	.org 508
 root_dev:
 	.word ROOT_DEV
+
+# 只要硬盘中的 0 盘 0 道 1 扇区的 512 个字节的最后两个字节分别是 0x55 和 0xaa，那么 BIOS 就会认为它是个启动区
 boot_flag:
 	.word 0xAA55
 	
@@ -270,3 +275,4 @@ boot_flag:
 	enddata:
 	.bss
 	endbss:
+	

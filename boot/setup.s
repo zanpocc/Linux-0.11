@@ -35,7 +35,7 @@ _start:
 	mov %ax,%ds
 	mov %ax,%es
 #
-##print some message
+# print some message
 #
 	mov $0x03, %ah
 	xor %bh, %bh
@@ -46,8 +46,10 @@ _start:
 	mov $msg2,%bp
 	mov $0x1301, %ax
 	int $0x10
+
 # ok, the read went well so we get current cursor position and save it for
 # posterity.
+# 读取当前光标位置
 	mov	$INITSEG, %ax	# this is done in bootsect already, but...
 	mov	%ax, %ds
 	mov	$0x03, %ah	# read cursor pos
@@ -55,12 +57,13 @@ _start:
 	int	$0x10		# save it in known place, con_init fetches
 	mov	%dx, %ds:0	# it from 0x90000.
 # Get memory size (extended mem, kB)
-
+# 获取内存信息
 	mov	$0x88, %ah 
 	int	$0x15
 	mov	%ax, %ds:2
 
 # Get video-card data:
+# 显卡显示模式
 
 	mov	$0x0f, %ah
 	int	$0x10
@@ -68,6 +71,7 @@ _start:
 	mov	%ax, %ds:6	# al = video mode, ah = window width
 
 # check for EGA/VGA and some config parameters
+# 检查显示方式并取参数
 
 	mov	$0x12, %ah
 	mov	$0x10, %bl
@@ -77,6 +81,7 @@ _start:
 	mov	%cx, %ds:12
 
 # Get hd0 data
+# 获取第一块硬盘的信息
 
 	mov	$0x0000, %ax
 	mov	%ax, %ds
@@ -89,6 +94,7 @@ _start:
 	movsb
 
 # Get hd1 data
+# 获取第二快硬盘的信息
 
 	mov	$0x0000, %ax
 	mov	%ax, %ds
@@ -100,13 +106,13 @@ _start:
 	rep
 	movsb
 
-## modify ds
+# modify ds
 	mov $INITSEG,%ax
 	mov %ax,%ds
 	mov $SETUPSEG,%ax
 	mov %ax,%es
 
-##show cursor pos:
+# show cursor pos:
 	mov $0x03, %ah 
 	xor %bh,%bh
 	int $0x10
@@ -115,12 +121,12 @@ _start:
 	mov $cur,%bp
 	mov $0x1301,%ax
 	int $0x10
-##show detail
+# show detail
 	mov %ds:0 ,%ax
 	call print_hex
 	call print_nl
 
-##show memory size
+# show memory size
 	mov $0x03, %ah
 	xor %bh, %bh
 	int $0x10
@@ -130,11 +136,11 @@ _start:
 	mov $0x1301, %ax
 	int $0x10
 
-##show detail
+# show detail
 	mov %ds:2 , %ax
 	call print_hex
 
-##show 
+# show 
 	mov $0x03, %ah
 	xor %bh, %bh
 	int $0x10
@@ -143,12 +149,12 @@ _start:
 	mov $cyl, %bp
 	mov $0x1301, %ax
 	int $0x10
-##show detail
+# show detail
 	mov %ds:0x80, %ax
 	call print_hex
 	call print_nl
 
-##show 
+# show 
 	mov $0x03, %ah
 	xor %bh, %bh
 	int $0x10
@@ -157,12 +163,12 @@ _start:
 	mov $head, %bp
 	mov $0x1301, %ax
 	int $0x10
-##show detail
+# show detail
 	mov %ds:0x82, %ax
 	call print_hex
 	call print_nl
 
-##show 
+# show 
 	mov $0x03, %ah
 	xor %bh, %bh
 	int $0x10
@@ -171,13 +177,12 @@ _start:
 	mov $sect, %bp
 	mov $0x1301, %ax
 	int $0x10
-##show detail
+# show detail
 	mov %ds:0x8e, %ax
 	call print_hex
 	call print_nl
 #l:
 #	jmp l
-##
 # Check that there IS a hd1 :-)
 
 	mov	$0x01500, %ax
@@ -329,8 +334,8 @@ print_hex:
 	mov %ax,%dx
 
 print_digit:
-	rol $4,%dx	#循环以使低4位用上，高4位移至低4位
-	mov $0xe0f,%ax #ah ＝ 请求的功能值，al = 半个字节的掩码
+	rol $4,%dx	
+	mov $0xe0f,%ax
 	and %dl,%al
 	add $0x30,%al
 	cmp $0x3a,%al
@@ -341,7 +346,7 @@ outp:
 	int $0x10
 	loop print_digit
 	ret
-#打印回车换行
+# 打印回车换行
 print_nl:
 	mov $0xe0d,%ax
 	int $0x10

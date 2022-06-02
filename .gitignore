@@ -10,3 +10,4 @@ bootsect
 setup
 keyboard.s
 system
+*.img
