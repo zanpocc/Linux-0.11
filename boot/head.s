@@ -25,7 +25,7 @@ startup_32:
 	# 栈顶指针指向标记stack_start，高位8字节（0x10）赋值给ss寄存器，低位16字节赋值给esp
 	lss stack_start,%esp # stack_start定义在sched.c中
 
-	# 重新设置
+	# 重新设置idt和gdt
 	call setup_idt
 	call setup_gdt
 
@@ -49,7 +49,7 @@ startup_32:
  * int 16 for math errors.
  */
 	movl %cr0,%eax		# check math chip
-	andl $0x80000011,%eax	# Save PG,PE,ET
+	andl $0x80000011,%eax	# Save PG,PE,ET  0、4、31位
 /* "orl $0x10020,%eax" here for 486 might be good */
 	orl $2,%eax		# set MP
 	movl %eax,%cr0
@@ -119,6 +119,10 @@ setup_gdt:
  * using 4 of them to span 16 Mb of physical memory. People with
  * more than 16MB will have to expand this.
  */
+ # 一个页目录表，四个页表，每个表1024项，每项4字节
+ # 页目录项只有四项，页表项装满
+ # 最多对应16MB内存 4*1024*4
+ # 4*1024
 .org 0x1000
 pg0:
 
@@ -203,15 +207,21 @@ ignore_int:
  * won't guarantee that's all :-( )
  */
 .align 2
+# 设置页表
 setup_paging:
+	# 清空一个页目录表和四个页表处的内存
 	movl $1024*5,%ecx		/* 5 pages - pg_dir+4 page tables */
 	xorl %eax,%eax
 	xorl %edi,%edi			/* pg_dir is at 0x000 */
-	cld;rep;stosl
+	cld;rep;stosl           /* 将EAX中的值保存到ES:EDI指向的地址中,做ecx次操作,edi每次递增4 */
+
+	# 设置页目录表的前四项为存在并且可读可写
+	# 页目录项和页表项的后12位是标志位，前20位是基地址
 	movl $pg0+7,pg_dir		/* set present bit/user r/w */
 	movl $pg1+7,pg_dir+4		/*  --------- " " --------- */
 	movl $pg2+7,pg_dir+8		/*  --------- " " --------- */
 	movl $pg3+7,pg_dir+12		/*  --------- " " --------- */
+
 	movl $pg3+4092,%edi
 	movl $0xfff007,%eax		/*  16Mb - 4096 + 7 (r/w user,p) */
 	std
@@ -219,13 +229,17 @@ setup_paging:
 	subl $0x1000,%eax
 	jge 1b
 	cld
+
+	# 告诉CPU页目录项的地址
 	xorl %eax,%eax		/* pg_dir is at 0x0000 */
 	movl %eax,%cr3		/* cr3 - page directory start */
 	movl %cr0,%eax
-	
-	# 开启分页机制
+
+	# 设置第31位PG位为1，开启分页机制
 	orl $0x80000000,%eax 
 	movl %eax,%cr0		/* set paging (PG) bit */
+
+	# jmp到压入栈中的main函数地址处
 	ret			/* this also flushes prefetch-queue */
 
 .align 2
