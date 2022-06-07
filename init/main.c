@@ -103,15 +103,20 @@ static long main_memory_start = 0;
 
 struct drive_info { char dummy[32]; } drive_info;
 
+// 开启保护模式和分页后，进入main方法
 void main(void)		/* This really IS void, no error here. */
 {			/* The startup routine assumes (well, ...) this */
 /*
  * Interrupts are still disabled. Do necessary setups, then
  * enable them
+ * 中断现在仍然不可用，后续启用它
  */
 
  	ROOT_DEV = ORIG_ROOT_DEV;
  	drive_info = DRIVE_INFO;
+
+	// 计算完后，内核程序+缓冲区大小最多就是总内存的1/3，后面就都是主内存
+	// 这里最多只能使用16m的总内存
 	memory_end = (1<<20) + (EXT_MEM_K<<10);
 	memory_end &= 0xfffff000;
 	if (memory_end > 16*1024*1024)
@@ -126,7 +131,11 @@ void main(void)		/* This really IS void, no error here. */
 #ifdef RAMDISK
 	main_memory_start += rd_init(main_memory_start, RAMDISK*1024);
 #endif
+
+
 	mem_init(main_memory_start,memory_end);
+
+	
 	trap_init();
 	blk_dev_init();
 	chr_dev_init();
