@@ -94,6 +94,7 @@ static void time_init(void)
 	BCD_TO_BIN(time.tm_mon);
 	BCD_TO_BIN(time.tm_year);
 	time.tm_mon--;
+	// 从 1970 年 1 月 1 日 0 时起到开机当时经过的秒数
 	startup_time = kernel_mktime(&time);
 }
 
@@ -132,21 +133,42 @@ void main(void)		/* This really IS void, no error here. */
 	main_memory_start += rd_init(main_memory_start, RAMDISK*1024);
 #endif
 
-
+	// 内存初始化，使用一个数组表示页表的使用情况
 	mem_init(main_memory_start,memory_end);
 
-	
+	// 设置idt中的中断处理函数
 	trap_init();
+
+	// 初始化request数组
 	blk_dev_init();
+
+	// its empty,do nothing
 	chr_dev_init();
+
+	// 显示和键盘
 	tty_init();
+
+	// 时间
 	time_init();
+
+	// 任务调度,开启系统调用和时间中断
 	sched_init();
+
+	// 缓冲区初始化
 	buffer_init(buffer_memory_end);
+
+	// 磁盘初始化
 	hd_init();
+
+	// 软盘初始化
 	floppy_init();
+
+	// 开启中断
 	sti();
+
+	// 转到用户模式:模拟CPU系统调用前执行的压栈操作，执行iret返回到用户层
 	move_to_user_mode();
+
 	if (!fork()) {		/* we count on this going ok */
 		init();
 	}

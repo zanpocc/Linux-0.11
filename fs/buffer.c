@@ -30,6 +30,7 @@ extern int end;
 extern void put_super(int);
 extern void invalidate_inodes(int);
 
+// end参数由链接器ld设置，编译时指定得到内核模块大小
 struct buffer_head * start_buffer = (struct buffer_head *) &end;
 struct buffer_head * hash_table[NR_HASH];
 static struct buffer_head * free_list;
@@ -348,6 +349,8 @@ struct buffer_head * breada(int dev,int first, ...)
 	return (NULL);
 }
 
+// 构建两个数据结构start_buffer链表和hash_table
+// 管理缓冲区内存,给文件系统模块使用
 void buffer_init(long buffer_end)
 {
 	struct buffer_head * h = start_buffer;

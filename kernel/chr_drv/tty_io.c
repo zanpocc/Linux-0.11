@@ -104,7 +104,9 @@ struct tty_queue * table_list[]={
 
 void tty_init(void)
 {
+	// 串口中断开启，略过
 	rs_init();
+	// 设置键盘中断和显示
 	con_init();
 }
 

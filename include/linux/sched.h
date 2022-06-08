@@ -80,7 +80,7 @@ struct tss_struct {
 struct task_struct {
 /* these are hardcoded - don't touch */
 	long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
-	long counter;
+	long counter;  // 时间片
 	long priority;
 	long signal;
 	struct sigaction sigaction[32];
@@ -105,7 +105,7 @@ struct task_struct {
 /* ldt for this task 0 - zero 1 - cs 2 - ds&ss */
 	struct desc_struct ldt[3];
 /* tss for this task */
-	struct tss_struct tss;
+	struct tss_struct tss; // 进程当前寄存器状态
 };
 
 /*

@@ -20,16 +20,20 @@
  * paging, 'bh' is NULL, and 'waiting' is used to wait for
  * read/write completion.
  */
+/**
+ * 这个结构代表一次读盘请求
+ * 
+ */
 struct request {
-	int dev;		/* -1 if no request */
+	int dev;		/* 设备号，-1 if no request */
 	int cmd;		/* READ or WRITE */
 	int errors;
-	unsigned long sector;
-	unsigned long nr_sectors;
-	char * buffer;
-	struct task_struct * waiting;
+	unsigned long sector; // 起始扇区
+	unsigned long nr_sectors; // 扇区数
+	char * buffer;  /* 读盘之后的数据放到内存中的位置 */
+	struct task_struct * waiting; // 发起的进程
 	struct buffer_head * bh;
-	struct request * next;
+	struct request * next; // 链表
 };
 
 /*

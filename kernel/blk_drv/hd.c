@@ -177,6 +177,7 @@ static int win_result(void)
 	return (1);
 }
 
+// 写磁盘操作命令
 static void hd_out(unsigned int drive,unsigned int nsect,unsigned int sect,
 		unsigned int head,unsigned int cyl,unsigned int cmd,
 		void (*intr_addr)(void))
@@ -342,8 +343,12 @@ void do_hd_request(void)
 
 void hd_init(void)
 {
+	// 磁盘块设备的处理函数
 	blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
+	// 设置磁盘中断
 	set_intr_gate(0x2E,&hd_interrupt);
+
+	// 允许硬盘控制器发送中断请求信号
 	outb_p(inb_p(0x21)&0xfb,0x21);
 	outb(inb_p(0xA1)&0xbf,0xA1);
 }

@@ -620,12 +620,17 @@ void con_init(void)
 	char *display_desc = "????";
 	char *display_ptr;
 
+	// 显示模式，setup时调bios中断取到
 	video_num_columns = ORIG_VIDEO_COLS;
+
 	video_size_row = video_num_columns * 2;
+
+	// 显示行数
 	video_num_lines = ORIG_VIDEO_LINES;
 	video_page = ORIG_VIDEO_PAGE;
 	video_erase_char = 0x0720;
 	
+	// 是那种显示模式
 	if (ORIG_VIDEO_MODE == 7)			/* Is this a monochrome display? */
 	{
 		video_mem_start = 0xb0000;
@@ -646,10 +651,11 @@ void con_init(void)
 	}
 	else								/* If not, it is color. */
 	{
+		// 显存映射的内存范围
 		video_mem_start = 0xb8000;
 		video_port_reg	= 0x3d4;
 		video_port_val	= 0x3d5;
-		if ((ORIG_VIDEO_EGA_BX & 0xff) != 0x10)
+		if ((ORIG_VIDEO_EGA_BX & 0xff) != 0x10) // qemu是这个
 		{
 			video_type = VIDEO_TYPE_EGAC;
 			video_mem_end = 0xbc000;
@@ -679,11 +685,19 @@ void con_init(void)
 	top	= 0;
 	bottom	= video_num_lines;
 
+	// 跳到之前保存的光标位置处
 	gotoxy(ORIG_X,ORIG_Y);
+
+	// 设置键盘中断处理函数
 	set_trap_gate(0x21,&keyboard_interrupt);
+
+	// 向0x21端口写1字节数据
 	outb_p(inb_p(0x21)&0xfd,0x21);
+	// 从0x61端口读取一字节数据
 	a=inb_p(0x61);
+	// 向0x61端口写入一字节数据
 	outb_p(a|0x80,0x61);
+	// 向0x61端口写入一字节数据
 	outb(a,0x61);
 }
 /* from bsd-net-2: */
