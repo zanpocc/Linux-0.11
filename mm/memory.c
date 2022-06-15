@@ -390,10 +390,15 @@ void do_no_page(unsigned long error_code,unsigned long address)
 	}
 	if (share_page(tmp))
 		return;
+
+	// 找一页空闲内存
 	if (!(page = get_free_page()))
 		oom();
 /* remember that 1 block is used for header */
+
+	// 找到地址对应的文件数据块
 	block = 1 + tmp/BLOCK_SIZE;
+	// 读取四个数据块到内存
 	for (i=0 ; i<4 ; block++,i++)
 		nr[i] = bmap(current->executable,block);
 	bread_page(page,current->executable->i_dev,nr);
@@ -403,6 +408,8 @@ void do_no_page(unsigned long error_code,unsigned long address)
 		tmp--;
 		*(char *)tmp = 0;
 	}
+
+	// 完成页表映射
 	if (put_page(page,address))
 		return;
 	free_page(page);
