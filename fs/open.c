@@ -142,24 +142,36 @@ int sys_open(const char * filename,int flag,int mode)
 	int i,fd;
 
 	mode &= 0777 & ~current->umask;
+
+	// 在当前进程的文件描述符数组中找个空闲项
 	for(fd=0 ; fd<NR_OPEN ; fd++)
 		if (!current->filp[fd])
 			break;
 	if (fd>=NR_OPEN)
 		return -EINVAL;
+
 	current->close_on_exec &= ~(1<<fd);
 	f=0+file_table;
+
+	// 在系统文件表file_table中找到一个空闲项
 	for (i=0 ; i<NR_FILE ; i++,f++)
 		if (!f->f_count) break;
 	if (i>=NR_FILE)
 		return -EINVAL;
+
+	// 进程的文件描述符指向系统的文件描述符
 	(current->filp[fd]=f)->f_count++;
+
+	// 根据名称找到文件的inode信息
 	if ((i=open_namei(filename,flag,mode,&inode))<0) {
 		current->filp[fd]=NULL;
 		f->f_count=0;
 		return i;
 	}
+
 /* ttys are somewhat special (ttyxx major==4, tty major==5) */
+
+
 	if (S_ISCHR(inode->i_mode)) {
 		if (MAJOR(inode->i_zone[0])==4) {
 			if (current->leader && current->tty<0) {
@@ -174,9 +186,12 @@ int sys_open(const char * filename,int flag,int mode)
 				return -EPERM;
 			}
 	}
-/* Likewise with block-devices: check for floppy_change */
+
+
 	if (S_ISBLK(inode->i_mode))
 		check_disk_change(inode->i_zone[0]);
+
+	// 填充file结构
 	f->f_mode = inode->i_mode;
 	f->f_flags = flag;
 	f->f_count = 1;

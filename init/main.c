@@ -113,7 +113,10 @@ void main(void)		/* This really IS void, no error here. */
  * 中断现在仍然不可用，后续启用它
  */
 
+	// 超级块
  	ROOT_DEV = ORIG_ROOT_DEV;
+	
+	// 硬盘 1 的参数信息
  	drive_info = DRIVE_INFO;
 
 	// 计算完后，内核程序+缓冲区大小最多就是总内存的1/3，后面就都是主内存
@@ -169,7 +172,8 @@ void main(void)		/* This really IS void, no error here. */
 	// 转到用户模式:模拟CPU系统调用前执行的压栈操作，执行iret返回到用户层
 	move_to_user_mode();
 
-	if (!fork()) {		/* we count on this going ok */
+	// 通过fork系统调用，创建一个新的线程
+	if (!fork()) {
 		init();
 	}
 /*
@@ -203,17 +207,29 @@ void init(void)
 {
 	int pid,i;
 
+	// 读取磁盘信息，挂载根目录
 	setup((void *) &drive_info);
+
+	// 返回了三个文件描述符，但是操作系统的file_table只有一项，进程有三项
+	// 0号fd，标准输入设备
 	(void) open("/dev/tty0",O_RDWR,0);
+	// 1号fd，标准输出设备
 	(void) dup(0);
+	// 2号fd，标准错误输出设备
 	(void) dup(0);
+
 	printf("%d buffers = %d bytes buffer space\n\r",NR_BUFFERS,
 		NR_BUFFERS*BLOCK_SIZE);
 	printf("Free mem: %d bytes\n\r",memory_end-main_memory_start);
+
+	// 创建新进程
 	if (!(pid=fork())) {
+		// 替换标准输入
 		close(0);
 		if (open("/etc/rc",O_RDONLY,0))
 			_exit(1);
+
+		// 运行程序
 		execve("/bin/sh",argv_rc,envp_rc);
 		_exit(2);
 	}

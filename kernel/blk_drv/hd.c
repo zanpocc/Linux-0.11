@@ -43,7 +43,12 @@ static int reset = 0;
  *  This struct defines the HD's and their types.
  */
 struct hd_i_struct {
-	int head,sect,cyl,wpcom,lzone,ctl;
+	int head, // 磁头数
+	sect, // 每磁道扇区数
+	cyl, // 柱面数
+	wpcom, // 写前预补偿柱面号
+	lzone, // 磁头着陆区柱面号
+	ctl; // 控制字节
 	};
 #ifdef HD_TYPE
 struct hd_i_struct hd_info[] = { HD_TYPE };
@@ -80,6 +85,7 @@ int sys_setup(void * BIOS)
 		return -1;
 	callable = 0;
 #ifndef HD_TYPE
+	// 使用引导时通过BIOS中断获取的磁盘硬件信息填充结构
 	for (drive=0 ; drive<2 ; drive++) {
 		hd_info[drive].cyl = *(unsigned short *) BIOS;
 		hd_info[drive].head = *(unsigned char *) (2+BIOS);
@@ -94,10 +100,11 @@ int sys_setup(void * BIOS)
 	else
 		NR_HD=1;
 #endif
+
+	// 磁盘分区表
 	for (i=0 ; i<NR_HD ; i++) {
 		hd[i*5].start_sect = 0;
-		hd[i*5].nr_sects = hd_info[i].head*
-				hd_info[i].sect*hd_info[i].cyl;
+		hd[i*5].nr_sects = hd_info[i].head * hd_info[i].sect * hd_info[i].cyl;
 	}
 
 	/*
@@ -133,7 +140,10 @@ int sys_setup(void * BIOS)
 		hd[i*5].start_sect = 0;
 		hd[i*5].nr_sects = 0;
 	}
+
+
 	for (drive=0 ; drive<NR_HD ; drive++) {
+		// 读取磁盘第一个扇区1024个字节
 		if (!(bh = bread(0x300 + drive*5,0))) {
 			printk("Unable to read partition table of drive %d\n\r",
 				drive);
@@ -144,6 +154,8 @@ int sys_setup(void * BIOS)
 			printk("Bad partition table on drive %d\n\r",drive);
 			panic("");
 		}
+
+		// 第一个扇区的0x1BE偏移处存放着分区信息
 		p = 0x1BE + (void *)bh->b_data;
 		for (i=1;i<5;i++,p++) {
 			hd[i+5*drive].start_sect = p->start_sect;
@@ -154,6 +166,8 @@ int sys_setup(void * BIOS)
 	if (NR_HD)
 		printk("Partition table%s ok.\n\r",(NR_HD>1)?"s":"");
 	rd_load();
+
+	// 挂载根，即从文件系统的中读取
 	mount_root();
 	return (0);
 }

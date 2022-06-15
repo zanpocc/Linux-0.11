@@ -91,7 +91,7 @@ system_call:
 	mov %dx,%es
 	movl $0x17,%edx		# fs points to local data space
 	mov %dx,%fs
-	call *sys_call_table(,%eax,4)
+	call *sys_call_table(,%eax,4)  # 系统调用表
 	pushl %eax
 	movl current,%eax
 	cmpl $0,state(%eax)		# state
@@ -186,14 +186,14 @@ timer_interrupt:
 	mov %ax,%es
 	movl $0x17,%eax
 	mov %ax,%fs
-	incl jiffies
+	incl jiffies # jiffies+1
 	movb $0x20,%al		# EOI to interrupt controller #1
 	outb %al,$0x20
 	movl CS(%esp),%eax
 	andl $3,%eax		# %eax is CPL (0 or 3, 0=supervisor)
 	pushl %eax
 	call do_timer		# 'do_timer(long CPL)' does everything from
-	addl $4,%esp		# task switching to accounting ...
+	addl $4,%esp		# task switching to accounting ...	`
 	jmp ret_from_sys_call
 
 .align 2
@@ -206,9 +206,10 @@ sys_execve:
 
 .align 2
 sys_fork:
-	call find_empty_process
+	call find_empty_process # 从task数组找到一个空的栏位
 	testl %eax,%eax
 	js 1f
+	# 系统调用就已经压入了其它寄存器，这里再压入通用寄存器
 	push %gs
 	pushl %esi
 	pushl %edi

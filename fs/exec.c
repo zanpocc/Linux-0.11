@@ -178,6 +178,7 @@ static unsigned long change_ldt(unsigned long text_size,unsigned long * page)
 
 /*
  * 'do_execve()' executes a new program.
+ * 'do_execve()' 运行一个新程序
  */
 int do_execve(unsigned long * eip,long tmp,char * filename,
 	char ** argv, char ** envp)
@@ -190,12 +191,16 @@ int do_execve(unsigned long * eip,long tmp,char * filename,
 	int e_uid, e_gid;
 	int retval;
 	int sh_bang = 0;
+
+	// 进程参数表的地址
 	unsigned long p=PAGE_SIZE*MAX_ARG_PAGES-4;
 
 	if ((0xffff & eip[1]) != 0x000f)
 		panic("execve called from supervisor mode");
 	for (i=0 ; i<MAX_ARG_PAGES ; i++)	/* clear page-table */
 		page[i]=0;
+
+	// 获取文件inode
 	if (!(inode=namei(filename)))		/* get executables inode */
 		return -ENOENT;
 	argc = count(argv);
@@ -218,11 +223,17 @@ restart_interp:
 		retval = -ENOEXEC;
 		goto exec_error2;
 	}
+
+	// 读取文件数据 1024
 	if (!(bh = bread(inode->i_dev,inode->i_zone[0]))) {
 		retval = -EACCES;
 		goto exec_error2;
 	}
+
+	// 转成exec结构
 	ex = *((struct exec *) bh->b_data);	/* read exec-header */
+
+	// 是否是脚本文件
 	if ((bh->b_data[0] == '#') && (bh->b_data[1] == '!') && (!sh_bang)) {
 		/*
 		 * This section does the #! interpretation.
@@ -307,6 +318,8 @@ restart_interp:
 		retval = -ENOEXEC;
 		goto exec_error2;
 	}
+
+	// 拷贝参数到参数表，参数表在进程的最大地址处
 	if (!sh_bang) {
 		p = copy_strings(envc,envp,page,p,0);
 		p = copy_strings(argc,argv,page,p,0);
@@ -330,7 +343,10 @@ restart_interp:
 	if (last_task_used_math == current)
 		last_task_used_math = NULL;
 	current->used_math = 0;
+
+	// 修改局部描述符
 	p += change_ldt(ex.a_text,page)-MAX_ARG_PAGES*PAGE_SIZE;
+	// 构建参数表
 	p = (unsigned long) create_tables((char *)p,argc,envc);
 	current->brk = ex.a_bss +
 		(current->end_data = ex.a_data +
@@ -341,6 +357,9 @@ restart_interp:
 	i = ex.a_text+ex.a_data;
 	while (i&0xfff)
 		put_fs_byte(0,(char *) (i++));
+
+	// eip指向程序入口点，esp指向参数表
+	// 这里的eip是系统调用时cpu压入的参数，iret时会恢复eip处代码的执行
 	eip[0] = ex.a_entry;		/* eip, magic happens :-) */
 	eip[3] = p;			/* stack pointer */
 	return 0;

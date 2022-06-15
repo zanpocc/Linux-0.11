@@ -50,15 +50,21 @@ int copy_mem(int nr,struct task_struct * p)
 		panic("We don't support separate I&D");
 	if (data_limit < code_limit)
 		panic("Bad data_limit");
+
+	// 第n个进程的段基址就是n*16M
 	new_data_base = new_code_base = nr * 0x4000000;
 	p->start_code = new_code_base;
 	set_base(p->ldt[1],new_code_base);
 	set_base(p->ldt[2],new_data_base);
+
+	// 页表拷贝，新建进程的页表页目录第16项和父进程的第0项一样
+	// 所以他们会映射到同一个物理地址去
 	if (copy_page_tables(old_data_base,new_data_base,data_limit)) {
 		printk("free_page_tables: from copy_mem\n");
 		free_page_tables(new_data_base,data_limit);
 		return -ENOMEM;
 	}
+
 	return 0;
 }
 
@@ -76,6 +82,7 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	int i;
 	struct file *f;
 
+	// 去主内存中找一页未使用的内存
 	p = (struct task_struct *) get_free_page();
 	if (!p)
 		return -EAGAIN;
@@ -83,8 +90,12 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	
 	// NOTE!: the following statement now work with gcc 4.3.2 now, and you
 	// must compile _THIS_ memcpy without no -O of gcc.#ifndef GCC4_3
+
+	// 赋值当前进程的属性给新进程
 	*p = *current;	/* NOTE! this doesn't copy the supervisor stack */
-	p->state = TASK_UNINTERRUPTIBLE;
+
+	// 填充新进程的其它属性
+	p->state = TASK_UNINTERRUPTIBLE; // 不可调度状态，进程还没准备好
 	p->pid = last_pid;
 	p->father = current->pid;
 	p->counter = p->priority;
@@ -95,8 +106,11 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->cutime = p->cstime = 0;
 	p->start_time = jiffies;
 	p->tss.back_link = 0;
+
+	// esp0和ss0表示进程运行到内核层时使用的堆栈，指向进程结构所在4k页面的最顶端，利用此可快速获取当前运行进程。
 	p->tss.esp0 = PAGE_SIZE + (long) p;
 	p->tss.ss0 = 0x10;
+	
 	p->tss.eip = eip;
 	p->tss.eflags = eflags;
 	p->tss.eax = 0;
@@ -117,6 +131,8 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->tss.trace_bitmap = 0x80000000;
 	if (last_task_used_math == current)
 		__asm__("clts ; fnsave %0"::"m" (p->tss.i387));
+
+	
 	if (copy_mem(nr,p)) {
 		task[nr] = NULL;
 		free_page((long) p);
@@ -131,9 +147,12 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 		current->root->i_count++;
 	if (current->executable)
 		current->executable->i_count++;
+
+	// nr是在task数组中的索引
 	set_tss_desc(gdt+(nr<<1)+FIRST_TSS_ENTRY,&(p->tss));
 	set_ldt_desc(gdt+(nr<<1)+FIRST_LDT_ENTRY,&(p->ldt));
-	p->state = TASK_RUNNING;	/* do this last, just in case */
+
+	p->state = TASK_RUNNING;	// 等待调度
 	return last_pid;
 }
 
@@ -143,8 +162,10 @@ int find_empty_process(void)
 
 	repeat:
 		if ((++last_pid)<0) last_pid=1;
+		// 找一个没有使用的pid
 		for(i=0 ; i<NR_TASKS ; i++)
 			if (task[i] && task[i]->pid == last_pid) goto repeat;
+	// 找一个空的task数组下标
 	for(i=1 ; i<NR_TASKS ; i++)
 		if (!task[i])
 			return i;

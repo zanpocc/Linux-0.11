@@ -178,6 +178,8 @@ int copy_page_tables(unsigned long from,unsigned long to,long size)
 			this_page = *from_page_table;
 			if (!(1 & this_page))
 				continue;
+
+			// 新老页表的页表项都为只读
 			this_page &= ~2;
 			*to_page_table = this_page;
 			if (this_page > LOW_MEM) {
@@ -227,15 +229,20 @@ void un_wp_page(unsigned long * table_entry)
 	unsigned long old_page,new_page;
 
 	old_page = 0xfffff000 & *table_entry;
+
+	// 只被引用一次，说明没有被共享，那只改下读写属性就行了
 	if (old_page >= LOW_MEM && mem_map[MAP_NR(old_page)]==1) {
 		*table_entry |= 2;
 		invalidate();
 		return;
 	}
+
+	// 复制页表
 	if (!(new_page=get_free_page()))
 		oom();
 	if (old_page >= LOW_MEM)
 		mem_map[MAP_NR(old_page)]--;
+	
 	*table_entry = new_page | 7;
 	invalidate();
 	copy_page(old_page,new_page);
@@ -256,6 +263,7 @@ void do_wp_page(unsigned long error_code,unsigned long address)
 	if (CODE_SPACE(address))
 		do_exit(SIGSEGV);
 #endif
+	// 计算了线性地址在页表项的指针
 	un_wp_page((unsigned long *)
 		(((address>>10) & 0xffc) + (0xfffff000 &
 		*((unsigned long *) ((address>>20) &0xffc)))));

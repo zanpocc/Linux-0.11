@@ -39,6 +39,7 @@ int sys_dup2(unsigned int oldfd, unsigned int newfd)
 	return dupfd(oldfd,newfd);
 }
 
+// 复制指定的文件描述符信息，返回一个复制后的新文件描述符
 int sys_dup(unsigned int fildes)
 {
 	return dupfd(fildes,0);

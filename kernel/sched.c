@@ -62,6 +62,7 @@ long startup_time=0;
 struct task_struct *current = &(init_task.task);
 struct task_struct *last_task_used_math = NULL;
 
+// 任务调度结构
 struct task_struct * task[NR_TASKS] = {&(init_task.task), };
 
 long user_stack [ PAGE_SIZE>>2 ] ;
@@ -108,16 +109,20 @@ void schedule(void)
 
 /* check alarm, wake up any interruptible tasks that have got a signal */
 
+	// 遍历所有可被调度的线程
 	for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
-		if (*p) {
+	{
+		if (*p) 
+		{
 			if ((*p)->alarm && (*p)->alarm < jiffies) {
 					(*p)->signal |= (1<<(SIGALRM-1));
 					(*p)->alarm = 0;
-				}
+			}
 			if (((*p)->signal & ~(_BLOCKABLE & (*p)->blocked)) &&
 			(*p)->state==TASK_INTERRUPTIBLE)
 				(*p)->state=TASK_RUNNING;
 		}
+	}
 
 /* this is the scheduler proper: */
 
@@ -129,15 +134,22 @@ void schedule(void)
 		while (--i) {
 			if (!*--p)
 				continue;
+			// 找到处于running状态且剩余时间片最大的线程
 			if ((*p)->state == TASK_RUNNING && (*p)->counter > c)
 				c = (*p)->counter, next = i;
 		}
 		if (c) break;
+
+		// 如果没有找到，则给所有线程的时间片重新赋值
 		for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 			if (*p)
 				(*p)->counter = ((*p)->counter >> 1) +
 						(*p)->priority;
 	}
+
+	// next是task_struct结构数组的下标
+	// 切换
+
 	switch_to(next);
 }
 
@@ -329,6 +341,8 @@ void do_timer(long cpl)
 	}
 	if (current_DOR & 0xf0)
 		do_floppy_timer();
+
+	// 当前进程时间片等于0了，就重新调度一个线程
 	if ((--current->counter)>0) return;
 	current->counter=0;
 	if (!cpl) return;

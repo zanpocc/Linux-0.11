@@ -2,8 +2,11 @@
 #define _SCHED_H
 
 #define NR_TASKS 64
+
+// 10ms触发一次时间中断
 #define HZ 100
 
+// 最多64个线程同时运行
 #define FIRST_TASK task[0]
 #define LAST_TASK task[NR_TASKS-1]
 
@@ -16,11 +19,11 @@
 #error "Currently the close-on-exec-flags are in one word, max 32 files/proc"
 #endif
 
-#define TASK_RUNNING		0
-#define TASK_INTERRUPTIBLE	1
-#define TASK_UNINTERRUPTIBLE	2
-#define TASK_ZOMBIE		3
-#define TASK_STOPPED		4
+#define TASK_RUNNING		0 // 运行中,处于正在运行或者等待被调度的状态
+#define TASK_INTERRUPTIBLE	1 // 可中断，处于阻塞状态（睡眠或者等待IO）
+#define TASK_UNINTERRUPTIBLE	2 // 不可中断，处于不可被调度状态，例如新建的线程未达到可运行之前
+#define TASK_ZOMBIE		3 // 未释放内核资源，等待父进程回收
+#define TASK_STOPPED		4 // 被外部程序暂停
 
 #ifndef NULL
 #define NULL ((void *) 0)
@@ -91,7 +94,7 @@ struct task_struct {
 	long pid,father,pgrp,session,leader;
 	unsigned short uid,euid,suid;
 	unsigned short gid,egid,sgid;
-	long alarm;
+	long alarm; // 
 	long utime,stime,cutime,cstime,start_time;
 	unsigned short used_math;
 /* file system info */
@@ -101,7 +104,7 @@ struct task_struct {
 	struct m_inode * root;
 	struct m_inode * executable;
 	unsigned long close_on_exec;
-	struct file * filp[NR_OPEN];
+	struct file * filp[NR_OPEN]; // 进程文件描述符数组
 /* ldt for this task 0 - zero 1 - cs 2 - ds&ss */
 	struct desc_struct ldt[3];
 /* tss for this task */

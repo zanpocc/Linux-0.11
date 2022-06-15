@@ -113,11 +113,12 @@ struct m_inode {
 	unsigned char i_update;
 };
 
+// 文件结构，每个进程对应一个
 struct file {
 	unsigned short f_mode;
 	unsigned short f_flags;
-	unsigned short f_count;
-	struct m_inode * f_inode;
+	unsigned short f_count; // 使用的文件数量
+	struct m_inode * f_inode; // 文件的inode信息
 	off_t f_pos;
 };
 
